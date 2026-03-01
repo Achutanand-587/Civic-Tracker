@@ -9,14 +9,52 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { MapPin, Calendar, ThumbsUp, Edit2, CheckCircle } from 'lucide-react';
+import { MapPin, Calendar, ThumbsUp, Edit2, CheckCircle, ShieldAlert } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 
 const Admin = () => {
   const { issues, updateIssueStatus } = useIssues();
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (user?.email !== 'admin@civic.com') {
+    return (
+      <div className="min-h-screen bg-gradient-hero">
+        <Header />
+        <main className="container py-8 flex items-center justify-center min-h-[calc(100vh-80px)]">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center max-w-md p-6 bg-card rounded-lg shadow-lg border border-border"
+          >
+            <div className="w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <ShieldAlert className="w-6 h-6 text-destructive" />
+            </div>
+            <h2 className="text-2xl font-bold mb-2">Access Denied</h2>
+            <p className="text-muted-foreground mb-6">
+              You do not have permission to view the admin dashboard.
+            </p>
+            <Button onClick={() => navigate('/')} className="w-full">
+              Go Home
+            </Button>
+          </motion.div>
+        </main>
+      </div>
+    );
+  }
   const [newStatus, setNewStatus] = useState<IssueStatus>('reported');
   const [resolutionNotes, setResolutionNotes] = useState('');
 

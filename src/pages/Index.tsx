@@ -1,6 +1,7 @@
 import { useState, useMemo, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { useIssues } from '@/contexts/IssueContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Issue, IssueStatus, IssueCategory } from '@/types/issue';
 import Header from '@/components/Header';
 import IssueCard from '@/components/IssueCard';
@@ -19,6 +20,7 @@ const MapLoading = () => (
 
 const Index = () => {
   const { issues } = useIssues();
+  const { user } = useAuth();
   const [selectedStatus, setSelectedStatus] = useState<IssueStatus | 'all'>('all');
   const [selectedCategory, setSelectedCategory] = useState<IssueCategory | 'all'>('all');
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
@@ -49,21 +51,23 @@ const Index = () => {
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-6">
             Report potholes, broken streetlights, garbage, and other civic issues. Together, we can make our neighborhoods safer and cleaner.
           </p>
-          <Link to="/report">
-            <Button variant="hero" size="xl" className="gap-2">
-              <Plus className="h-5 w-5" />
-              Report an Issue
-            </Button>
-          </Link>
+          {user?.email !== 'admin@civic.com' && (
+            <Link to="/report">
+              <Button variant="hero" size="xl" className="gap-2">
+                <Plus className="h-5 w-5" />
+                Report an Issue
+              </Button>
+            </Link>
+          )}
         </section>
 
         {/* Stats */}
-        <section className="mb-8">
+        <section className="mb-8 animate-fade-in" style={{ animationDelay: '200ms' }}>
           <StatsBar />
         </section>
 
         {/* Filters */}
-        <section className="mb-6">
+        <section className="mb-6 animate-fade-in" style={{ animationDelay: '400ms' }}>
           <FilterBar
             selectedStatus={selectedStatus}
             selectedCategory={selectedCategory}
@@ -73,7 +77,7 @@ const Index = () => {
         </section>
 
         {/* Map & Issues Grid */}
-        <div className="grid lg:grid-cols-3 gap-6">
+        <div className="grid lg:grid-cols-3 gap-6 animate-fade-in" style={{ animationDelay: '600ms' }}>
           {/* Map */}
           <div className="lg:col-span-2">
             <Suspense fallback={<MapLoading />}>

@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { MapPin, Plus, List, LayoutDashboard, Menu, X, LogIn, LogOut } from 'lucide-react';
+import { MapPin, Plus, List, LayoutDashboard, Menu, X, LogIn, LogOut, User } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,8 +13,12 @@ const Header = () => {
   const navItems = [
     { path: '/', label: 'Map', icon: MapPin },
     { path: '/issues', label: 'Issues', icon: List },
-    { path: '/report', label: 'Report', icon: Plus },
-    { path: '/admin', label: 'Admin', icon: LayoutDashboard },
+    ...(user?.email !== 'admin@civic.com'
+      ? [{ path: '/report', label: 'Report', icon: Plus }]
+      : []),
+    ...(user?.email === 'admin@civic.com'
+      ? [{ path: '/admin', label: 'Admin', icon: LayoutDashboard }]
+      : []),
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -50,14 +54,22 @@ const Header = () => {
               </Button>
             </Link>
           ))}
-          
+
           {user ? (
-            <Button variant="ghost" size="sm" className="gap-2 ml-2" onClick={handleLogout}>
-              <LogOut className="h-4 w-4" />
-              Logout
-            </Button>
+            <div className="flex items-center gap-1">
+              <Link to="/profile">
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <User className="h-4 w-4" />
+                  Profile
+                </Button>
+              </Link>
+              <Button variant="ghost" size="sm" className="gap-2 ml-2" onClick={handleLogout}>
+                <LogOut className="h-4 w-4" />
+                Logout
+              </Button>
+            </div>
           ) : (
-            <Link to="/auth">
+            <Link to="/login">
               <Button variant="outline" size="sm" className="gap-2 ml-2">
                 <LogIn className="h-4 w-4" />
                 Sign In
@@ -102,14 +114,22 @@ const Header = () => {
                   </Button>
                 </Link>
               ))}
-              
+
               {user ? (
-                <Button variant="ghost" className="w-full justify-start gap-2" onClick={handleLogout}>
-                  <LogOut className="h-4 w-4" />
-                  Logout
-                </Button>
+                <>
+                  <Link to="/profile" onClick={() => setMobileMenuOpen(false)}>
+                    <Button variant="ghost" className="w-full justify-start gap-2">
+                      <User className="h-4 w-4" />
+                      Profile
+                    </Button>
+                  </Link>
+                  <Button variant="ghost" className="w-full justify-start gap-2" onClick={handleLogout}>
+                    <LogOut className="h-4 w-4" />
+                    Logout
+                  </Button>
+                </>
               ) : (
-                <Link to="/auth" onClick={() => setMobileMenuOpen(false)}>
+                <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
                   <Button variant="outline" className="w-full justify-start gap-2">
                     <LogIn className="h-4 w-4" />
                     Sign In

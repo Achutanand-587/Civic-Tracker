@@ -6,6 +6,7 @@ import { ThumbsUp, MapPin, Clock, User } from 'lucide-react';
 import { useIssues } from '@/contexts/IssueContext';
 import { motion } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
 
 interface IssueCardProps {
   issue: Issue;
@@ -18,9 +19,20 @@ const IssueCard = ({ issue, onClick, compact = false }: IssueCardProps) => {
   const categoryConfig = CATEGORY_CONFIG[issue.category];
   const statusConfig = STATUS_CONFIG[issue.status];
 
-  const handleUpvote = (e: React.MouseEvent) => {
+  const { toast } = useToast();
+
+  const handleUpvote = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    upvoteIssue(issue.id);
+    try {
+      await upvoteIssue(issue.id);
+      toast({ title: 'Upvoted!', description: 'Thanks for your support.' });
+    } catch (error: any) {
+      toast({
+        title: 'Action Failed',
+        description: error.message,
+        variant: 'destructive'
+      });
+    }
   };
 
   if (compact) {
@@ -108,7 +120,7 @@ const IssueCard = ({ issue, onClick, compact = false }: IssueCardProps) => {
 
         <CardContent className="pt-0">
           <p className="text-sm text-muted-foreground line-clamp-2 mb-4">{issue.description}</p>
-          
+
           <div className="flex flex-col gap-2 text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
               <MapPin className="h-3.5 w-3.5" />

@@ -1,16 +1,19 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { Issue, IssueStatus, IssueCategory } from '@/types/issue';
 import { db } from '@/lib/firebase';
-import { 
-  collection, 
-  addDoc, 
-  updateDoc, 
-  doc, 
-  onSnapshot, 
-  query, 
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  collection,
+  addDoc,
+  updateDoc,
+  doc,
+  onSnapshot,
+  query,
   orderBy,
   Timestamp,
-  increment
+  increment,
+  arrayUnion,
+  getDoc
 } from 'firebase/firestore';
 
 interface IssueContextType {
@@ -31,11 +34,12 @@ const ISSUES_COLLECTION = 'issues';
 export const IssueProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   // Subscribe to Firestore issues collection
   useEffect(() => {
     const q = query(collection(db, ISSUES_COLLECTION), orderBy('reportedAt', 'desc'));
-    
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const issuesData: Issue[] = snapshot.docs.map(doc => {
         const data = doc.data();
@@ -48,6 +52,7 @@ export const IssueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           location: data.location,
           imageUrl: data.imageUrl,
           upvotes: data.upvotes || 0,
+          upvotedBy: data.upvotedBy || [],
           reportedBy: data.reportedBy,
           reportedAt: data.reportedAt?.toDate() || new Date(),
           updatedAt: data.updatedAt?.toDate() || new Date(),
@@ -66,14 +71,19 @@ export const IssueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   const addIssue = useCallback(async (issueData: Omit<Issue, 'id' | 'upvotes' | 'reportedAt' | 'updatedAt'>) => {
+    if (!user) {
+      throw new Error('User must be logged in to report an issue');
+    }
+
     const now = Timestamp.now();
     await addDoc(collection(db, ISSUES_COLLECTION), {
       ...issueData,
       upvotes: 0,
+      upvotedBy: [],
       reportedAt: now,
       updatedAt: now,
     });
-  }, []);
+  }, [user]);
 
   const updateIssueStatus = useCallback(async (id: string, status: IssueStatus, notes?: string) => {
     const issueRef = doc(db, ISSUES_COLLECTION, id);
@@ -88,11 +98,29 @@ export const IssueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   const upvoteIssue = useCallback(async (id: string) => {
+    if (!user) {
+      throw new Error('User must be logged in to upvote');
+    }
+
     const issueRef = doc(db, ISSUES_COLLECTION, id);
+    const issueDoc = await getDoc(issueRef);
+
+    if (!issueDoc.exists()) {
+      throw new Error('Issue not found');
+    }
+
+    const issueData = issueDoc.data() as Issue;
+    const upvotedBy = issueData.upvotedBy || [];
+
+    if (upvotedBy.includes(user.uid)) {
+      throw new Error('You have already upvoted this issue');
+    }
+
     await updateDoc(issueRef, {
       upvotes: increment(1),
+      upvotedBy: arrayUnion(user.uid)
     });
-  }, []);
+  }, [user]);
 
   const getIssueById = useCallback((id: string) => {
     return issues.find(issue => issue.id === id);

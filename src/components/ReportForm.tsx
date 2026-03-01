@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useIssues } from '@/contexts/IssueContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { IssueCategory, CATEGORY_CONFIG } from '@/types/issue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,10 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Camera, MapPin, Upload, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
+import LocationPicker from './LocationPicker';
 
 const ReportForm = () => {
   const navigate = useNavigate();
   const { addIssue } = useIssues();
+  const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -26,9 +29,10 @@ const ReportForm = () => {
     address: '',
     lat: 40.7128,
     lng: -74.006,
+    severity: 'medium', // Default or empty?
   });
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -39,23 +43,89 @@ const ReportForm = () => {
     }
   };
 
-  const getCurrentLocation = useCallback(() => {
+  const fetchAddress = async (lat: number, lng: number) => {
+    setFormData(prev => ({ ...prev, address: 'Fetching address details...', lat, lng }));
+
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`,
+        {
+          headers: {
+            'Accept-Language': 'en-US,en;q=0.9'
+          }
+        }
+      );
+      const data = await response.json();
+
+      let address = '';
+      if (data.address) {
+        const { road, house_number, suburb, city, town, village, county, state, postcode } = data.address;
+        const place = city || town || village || suburb;
+        const mainPart = [house_number, road].filter(Boolean).join(' ');
+        const secondaryPart = [place, state, postcode].filter(Boolean).join(', ');
+
+        if (mainPart) {
+          address = `${mainPart}, ${secondaryPart}`;
+        } else {
+          address = data.display_name;
+        }
+      } else if (data.display_name) {
+        address = data.display_name;
+      }
+
+      if (address) {
+        setFormData(prev => ({ ...prev, address }));
+      } else {
+        toast.error('Could not find address for this location. Please enter manually.');
+        setFormData(prev => ({ ...prev, address: '' }));
+      }
+    } catch (error) {
+      console.error('Failed to reverse geocode:', error);
+      toast.error('Address lookup failed. Please enter the location manually.');
+      setFormData(prev => ({ ...prev, address: '' }));
+    }
+  };
+
+  const getCurrentLocation = useCallback((highAccuracy = true) => {
     setIsGettingLocation(true);
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setFormData((prev) => ({
-            ...prev,
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-            address: `${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`,
-          }));
+        async (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          await fetchAddress(lat, lng);
           setIsGettingLocation(false);
-          toast.success('Location captured successfully!');
+          toast.success(highAccuracy ? 'GPS Location acquired!' : 'Approximate location acquired (GPS failed)');
         },
         (error) => {
+          console.warn('Geolocation error:', error);
+
+          if (highAccuracy && (error.code === error.TIMEOUT || error.code === error.POSITION_UNAVAILABLE)) {
+            // Retry with low accuracy (WiFi/Cell)
+            toast.info('GPS signal weak, trying approximate location...');
+            getCurrentLocation(false);
+            return;
+          }
+
           setIsGettingLocation(false);
-          toast.error('Failed to get location. Please enter address manually.');
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              toast.error('Location permission denied. Please enable it in browser settings.');
+              break;
+            case error.POSITION_UNAVAILABLE:
+              toast.error('Location information is unavailable. Please check your connection.');
+              break;
+            case error.TIMEOUT:
+              toast.error('Location request timed out. Please try again.');
+              break;
+            default:
+              toast.error('An unknown error occurred getting location.');
+          }
+        },
+        {
+          enableHighAccuracy: highAccuracy,
+          timeout: highAccuracy ? 15000 : 30000, // Longer timeout for backup attempt
+          maximumAge: 0
         }
       );
     } else {
@@ -66,34 +136,38 @@ const ReportForm = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.title || !formData.description || !formData.category) {
-      toast.error('Please fill in all required fields.');
+
+    if (!formData.title || !formData.description || !formData.category || !formData.address || !imagePreview) {
+      toast.error('Please fill in all required fields including location and photo.');
       return;
     }
 
     setIsSubmitting(true);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      await addIssue({
+        title: formData.title,
+        description: formData.description,
+        category: formData.category as IssueCategory,
+        status: 'reported',
+        location: {
+          lat: formData.lat,
+          lng: formData.lng,
+          address: formData.address,
+        },
+        imageUrl: imagePreview || undefined,
+        reportedBy: user?.displayName || user?.email || 'Anonymous User',
+        upvotedBy: [],
+        severity: (formData as any).severity as 'low' | 'medium' | 'high' | 'critical',
+      });
 
-    addIssue({
-      title: formData.title,
-      description: formData.description,
-      category: formData.category as IssueCategory,
-      status: 'reported',
-      location: {
-        lat: formData.lat,
-        lng: formData.lng,
-        address: formData.address,
-      },
-      imageUrl: imagePreview || undefined,
-      reportedBy: 'Anonymous User',
-    });
-
-    setIsSubmitting(false);
-    toast.success('Issue reported successfully! Thank you for contributing.');
-    navigate('/issues');
+      toast.success('Issue reported successfully! Thank you for contributing.');
+      navigate('/issues');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to report issue. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -113,7 +187,7 @@ const ReportForm = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Image Upload */}
             <div className="space-y-2">
-              <Label>Photo (Optional)</Label>
+              <Label>Photo *</Label>
               <div className="flex items-center gap-4">
                 <label className="cursor-pointer">
                   <input
@@ -141,6 +215,7 @@ const ReportForm = () => {
                   </div>
                 </label>
               </div>
+
               {imagePreview && (
                 <div className="mt-3 relative">
                   <img
@@ -157,6 +232,11 @@ const ReportForm = () => {
                   >
                     Remove
                   </Button>
+                  {(formData as any).severity && (
+                    <div className="absolute bottom-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-xs capitalize">
+                      Severity: {(formData as any).severity}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -182,6 +262,27 @@ const ReportForm = () => {
                       </span>
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Severity */}
+            <div className="space-y-2">
+              <Label htmlFor="severity">Severity</Label>
+              <Select
+                value={(formData as any).severity}
+                onValueChange={(value) =>
+                  setFormData((prev) => ({ ...prev, severity: value }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select severity" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -225,7 +326,7 @@ const ReportForm = () => {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={getCurrentLocation}
+                  onClick={() => getCurrentLocation()}
                   disabled={isGettingLocation}
                 >
                   {isGettingLocation ? (
@@ -235,9 +336,24 @@ const ReportForm = () => {
                   )}
                 </Button>
               </div>
+
+              <div className="flex gap-4 text-xs text-muted-foreground px-1">
+                <span className="font-mono bg-secondary/50 px-2 py-0.5 rounded">Lat: {formData.lat.toFixed(6)}</span>
+                <span className="font-mono bg-secondary/50 px-2 py-0.5 rounded">Lng: {formData.lng.toFixed(6)}</span>
+              </div>
+
               <p className="text-xs text-muted-foreground">
                 Click the pin button to automatically detect your current location
               </p>
+
+              <div className="pt-2">
+                <p className="text-sm font-medium mb-2">Confirm Location on Map</p>
+                <LocationPicker
+                  lat={formData.lat}
+                  lng={formData.lng}
+                  onLocationChange={fetchAddress}
+                />
+              </div>
             </div>
 
             {/* Submit */}
@@ -253,7 +369,7 @@ const ReportForm = () => {
               <Button
                 type="submit"
                 variant="hero"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isGettingLocation}
                 className="flex-1"
               >
                 {isSubmitting ? (
@@ -269,7 +385,7 @@ const ReportForm = () => {
           </form>
         </CardContent>
       </Card>
-    </motion.div>
+    </motion.div >
   );
 };
 

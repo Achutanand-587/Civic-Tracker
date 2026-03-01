@@ -46,7 +46,7 @@ const FilterBar = ({
           <SelectTrigger className="w-32 sm:hidden">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="z-[3000]">
             <SelectItem value="all">All Status</SelectItem>
             {Object.entries(STATUS_CONFIG).map(([key, config]) => (
               <SelectItem key={key} value={key}>
@@ -66,7 +66,7 @@ const FilterBar = ({
           <SelectTrigger className="w-40">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="z-[3000]">
             <SelectItem value="all">All Categories</SelectItem>
             {Object.entries(CATEGORY_CONFIG).map(([key, config]) => (
               <SelectItem key={key} value={key}>

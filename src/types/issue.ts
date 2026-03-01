@@ -15,11 +15,13 @@ export interface Issue {
   };
   imageUrl?: string;
   upvotes: number;
+  upvotedBy: string[];
   reportedBy: string;
   reportedAt: Date;
   updatedAt: Date;
   assignedTo?: string;
   resolutionNotes?: string;
+  severity?: 'low' | 'medium' | 'high' | 'critical';
 }
 
 export interface User {

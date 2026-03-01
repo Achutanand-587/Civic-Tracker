@@ -9,8 +9,20 @@ import Index from "./pages/Index";
 import Issues from "./pages/Issues";
 import Report from "./pages/Report";
 import Admin from "./pages/Admin";
-import Auth from "./pages/Auth";
+import AdminLogin from "./pages/AdminLogin";
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
+import Profile from "./pages/Profile";
+
 import NotFound from "./pages/NotFound";
+import { useAuth } from "./contexts/AuthContext";
+import { useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+
+// ProfileGuard removed
+const ProfileGuard = ({ children }: { children: React.ReactNode }) => {
+  return <>{children}</>;
+};
 
 const queryClient = new QueryClient();
 
@@ -22,14 +34,20 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/issues" element={<Issues />} />
-              <Route path="/report" element={<Report />} />
-              <Route path="/admin" element={<Admin />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <ProfileGuard>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/issues" element={<Issues />} />
+                <Route path="/report" element={<Report />} />
+                <Route path="/admin" element={<Admin />} />
+                <Route path="/admin/login" element={<AdminLogin />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/signup" element={<Signup />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </ProfileGuard>
           </BrowserRouter>
         </TooltipProvider>
       </IssueProvider>
