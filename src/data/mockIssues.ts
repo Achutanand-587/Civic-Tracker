@@ -58,6 +58,8 @@ export const mockIssues: Issue[] = [
     reportedBy: 'Lisa K.',
     reportedAt: new Date('2024-01-16'),
     updatedAt: new Date('2024-01-16'),
+    ward_id: 'W-02',
+    dept_id: 'WATER'
   },
   {
     id: '5',

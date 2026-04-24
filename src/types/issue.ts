@@ -21,7 +21,13 @@ export interface Issue {
   updatedAt: Date;
   assignedTo?: string;
   resolutionNotes?: string;
+  resolutionPhotoUrl?: string;
   severity?: 'low' | 'medium' | 'high' | 'critical';
+  ward_id?: string;
+  dept_id?: string;
+  ward_name?: string;
+  dept_name?: string;
+  assigned_incharge?: string;
 }
 
 export interface User {

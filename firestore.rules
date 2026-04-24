@@ -1,0 +1,74 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getRole() {
+      return request.auth.token.pmcRole;
+    }
+    
+    function getWardId() {
+      return request.auth.token.ward_id;
+    }
+    
+    function getDeptId() {
+      return request.auth.token.dept_id;
+    }
+    
+    // Valid roles check
+    function isCommissioner() { return getRole() == 'COMMISSIONER'; }
+    function isHOD() { return getRole() == 'HOD'; }
+    function isWardOfficer() { return getRole() == 'WARD_OFFICER'; }
+    function isJuniorEngineer() { return getRole() == 'JUNIOR_ENGINEER'; }
+
+    // Users Collection
+    match /users/{userId} {
+      // Anyone authenticated can read user profiles (useful for UI drop-downs)
+      allow read: if isAuthenticated();
+      // No one can write from client (handled by Admin SDK)
+      allow write: if false;
+    }
+
+    // Issues Collection
+    match /issues/{issueId} {
+      
+      // READ Rules
+      allow read: if isAuthenticated() && (
+        isCommissioner() ||
+        (isHOD() && resource.data.dept_id == getDeptId()) ||
+        (isWardOfficer() && resource.data.ward_id == getWardId()) ||
+        (isJuniorEngineer() && resource.data.ward_id == getWardId() && resource.data.dept_id == getDeptId())
+      );
+      
+      // CREATE Rules
+      allow create: if isAuthenticated();
+
+      // UPDATE Rules
+      allow update: if isAuthenticated() && (
+        isCommissioner() ||
+        (isHOD() && resource.data.dept_id == getDeptId()) ||
+        (isWardOfficer() && resource.data.ward_id == getWardId()) ||
+        // JE can ONLY update if assigned to them, and can ONLY modify specific fields
+        (
+          isJuniorEngineer() && 
+          resource.data.assigned_to == request.auth.uid &&
+          // Enforce that ONLY status and resolution_notes are changed
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'resolution_notes'])
+        )
+      );
+
+      // DELETE Rules
+      // Ensure only the Commissioner can delete records.
+      allow delete: if isAuthenticated() && isCommissioner();
+    }
+    
+    // OTPs Collection (Backend only)
+    match /otps/{email} {
+      allow read, write: if false; // Only Cloud Functions can access this collection
+    }
+  }
+}

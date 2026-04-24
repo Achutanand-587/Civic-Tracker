@@ -4,20 +4,22 @@ import { MapPin, Plus, List, LayoutDashboard, Menu, X, LogIn, LogOut, User } fro
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePMCAuth } from '@/hooks/usePMCAuth';
 
 const Header = () => {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, logout } = useAuth();
+  const { claims } = usePMCAuth();
 
   const navItems = [
     { path: '/', label: 'Map', icon: MapPin },
     { path: '/issues', label: 'Issues', icon: List },
-    ...(user?.email !== 'admin@civic.com'
+    ...(user && !claims?.pmcRole && user?.email !== 'admin@civic.com'
       ? [{ path: '/report', label: 'Report', icon: Plus }]
       : []),
-    ...(user?.email === 'admin@civic.com'
-      ? [{ path: '/admin', label: 'Admin', icon: LayoutDashboard }]
+    ...(user?.email === 'admin@civic.com' || claims?.pmcRole
+      ? [{ path: '/admin', label: 'Dashboard', icon: LayoutDashboard }]
       : []),
   ];
 

@@ -1,0 +1,114 @@
+[
+  {
+    "id": "3ptO7NWjv3NUi6fRhh1BSgzUOwn1",
+    "role": "JUNIOR_ENGINEER",
+    "customClaimsSetAt": {
+      "_seconds": 1776577190,
+      "_nanoseconds": 992000000
+    },
+    "dept_id": "WATER",
+    "ward_id": "W-02"
+  },
+  {
+    "id": "BuL2YlVilKWJsWF0Yjko7j9ZxCB2",
+    "role": "WARD_OFFICER",
+    "customClaimsSetAt": {
+      "_seconds": 1776577188,
+      "_nanoseconds": 629000000
+    },
+    "dept_id": null,
+    "ward_id": "W-05"
+  },
+  {
+    "id": "FNb14ykQ9qdF8ffUYEGSg0vETZr1",
+    "fullName": "John Sena",
+    "phoneNumber": "9999999999",
+    "address": "Kondhwa Pune",
+    "dob": "2006-03-06",
+    "aadhaarNumber": "123412341234",
+    "isAadhaarVerified": true,
+    "email": "admin@civic.com",
+    "createdAt": {
+      "_seconds": 1767592212,
+      "_nanoseconds": 512000000
+    }
+  },
+  {
+    "id": "XqLC77LccrUUQBXf1tIA5Vb19Zw2",
+    "role": "HOD",
+    "customClaimsSetAt": {
+      "_seconds": 1776577179,
+      "_nanoseconds": 924000000
+    },
+    "dept_id": "SWM",
+    "ward_id": null
+  },
+  {
+    "id": "bGG596UpGjPwDqa06SQPXkrczVg2",
+    "fullName": "John doe",
+    "phoneNumber": "1234567980",
+    "address": "Kondhwa Budruk, Pune City, Pune District, Maharashtra, 411048, India",
+    "dob": "2005-03-03",
+    "aadhaarNumber": "123456781234",
+    "isAadhaarVerified": true,
+    "email": "xyz@gmail.com",
+    "createdAt": {
+      "_seconds": 1768580806,
+      "_nanoseconds": 790000000
+    }
+  },
+  {
+    "id": "qA5fqYgBbXZ1BFcwDgBPiS7h3iB3",
+    "role": "HOD",
+    "customClaimsSetAt": {
+      "_seconds": 1776577182,
+      "_nanoseconds": 312000000
+    },
+    "dept_id": "ROAD",
+    "ward_id": null
+  },
+  {
+    "id": "s8TfwBokY9NZ87BgAp7BK5l1hKc2",
+    "role": "WARD_OFFICER",
+    "customClaimsSetAt": {
+      "_seconds": 1776577186,
+      "_nanoseconds": 268000000
+    },
+    "dept_id": null,
+    "ward_id": "W-02"
+  },
+  {
+    "id": "ueDRfqPHqzZigj7X2BUJDytwxDz1",
+    "fullName": "Ak",
+    "phoneNumber": "8888888888",
+    "address": "33/C-1, Geeta nagar, Solapur",
+    "dob": "2005-03-05",
+    "aadhaarNumber": "123412341234",
+    "isAadhaarVerified": true,
+    "email": "achutanand587@gmail.com",
+    "createdAt": {
+      "_seconds": 1767592328,
+      "_nanoseconds": 449000000
+    }
+  },
+  {
+    "id": "y8htUtoBhJZ28ndMg5dCC0aMEI32",
+    "role": "JUNIOR_ENGINEER",
+    "customClaimsSetAt": {
+      "_seconds": 1776577193,
+      "_nanoseconds": 328000000
+    },
+    "dept_id": "ROAD",
+    "ward_id": "W-05"
+  },
+  {
+    "id": "yT9XLUELpKR5GX6PEi8m12uENlQ2",
+    "role": "COMMISSIONER",
+    "customClaimsSetAt": {
+      "_seconds": 1776577177,
+      "_nanoseconds": 441000000
+    },
+    "dept_id": null,
+    "ward_id": null
+  }
+]

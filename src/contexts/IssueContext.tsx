@@ -58,6 +58,12 @@ export const IssueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           updatedAt: data.updatedAt?.toDate() || new Date(),
           assignedTo: data.assignedTo,
           resolutionNotes: data.resolutionNotes,
+          ward_id: data.ward_id,
+          dept_id: data.dept_id,
+          ward_name: data.ward_name,
+          dept_name: data.dept_name,
+          assigned_incharge: data.assigned_incharge,
+          resolutionPhotoUrl: data.resolutionPhotoUrl,
         } as Issue;
       });
       setIssues(issuesData);
