@@ -21,7 +21,7 @@ export const EscalationBadge = ({ issue }: EscalationBadgeProps) => {
   }
 
   const isOverdue = issue.deadline_at && isPast(new Date(issue.deadline_at));
-  const hoursOverdue = issue.deadline_at ? -differenceInHours(new Date(), new Date(issue.deadline_at)) : 0;
+  const hoursOverdue = issue.deadline_at ? differenceInHours(new Date(), new Date(issue.deadline_at)) : 0;
 
   const escalationLevelNames = ['Technician', 'Ward Officer', 'Commissioner'];
   const levelName = escalationLevelNames[issue.escalation_level] || 'Unknown';

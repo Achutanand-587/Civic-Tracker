@@ -10,7 +10,7 @@ const cron = require('node-cron');
 const upload = multer({ storage: multer.memoryStorage() });
 
 const app = express();
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -19,18 +19,24 @@ app.use(express.urlencoded({ limit: '50mb' }));
 // Initialize Firebase Admin
 if (!admin.apps.length) {
     try {
-        const serviceAccount = require('./pmc-service-account.json');
+        const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_JSON
+            ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON)
+            : require('./pmc-service-account.json');
         admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount)
+            credential: admin.credential.cert(serviceAccount),
+            storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${serviceAccount.project_id}.firebasestorage.app`
         });
         console.log("Firebase Admin initialized successfully.");
     } catch (e) {
         console.error("Warning: pmc-service-account.json not found or invalid", e);
-        admin.initializeApp();
+        admin.initializeApp({
+            storageBucket: process.env.FIREBASE_STORAGE_BUCKET
+        });
     }
 }
 
 const db = admin.firestore();
+const storageBucketName = process.env.FIREBASE_STORAGE_BUCKET || admin.app().options.storageBucket || 'local-issue-tracker-1533d.firebasestorage.app';
 
 // ============================================================
 // HELPER FUNCTIONS
@@ -85,30 +91,42 @@ function computeNewDeadline(level) {
  */
 async function resolveEscalationAssignee(level, wardId) {
   try {
-    let query;
+    const findFirstUser = async (roleValues, wardValue) => {
+      for (const role of roleValues) {
+        const baseQuery = db.collection('users').where('role', '==', role);
+        const queries = wardValue
+          ? [
+              baseQuery.where('wardId', '==', wardValue),
+              baseQuery.where('ward_id', '==', wardValue)
+            ]
+          : [baseQuery];
+
+        for (const query of queries) {
+          const snapshot = await query.limit(1).get();
+          if (!snapshot.empty) {
+            return snapshot.docs[0].id;
+          }
+        }
+      }
+
+      return null;
+    };
+
     if (level === 1) {
-      // Ward Officer
-      query = db.collection('users')
-        .where('role', '==', 'ward_officer')
-        .where('wardId', '==', wardId);
+      return findFirstUser(['WARD_OFFICER', 'ward_officer'], wardId);
     } else if (level === 2) {
-      // Commissioner
-      query = db.collection('users').where('role', '==', 'commissioner');
+      return findFirstUser(['COMMISSIONER', 'commissioner'], null);
     } else {
       return null;
     }
-
-    const snapshot = await query.get();
-    if (snapshot.empty) {
-      console.warn(`No user found for level ${level}, wardId ${wardId}`);
-      return null;
-    }
-
-    return snapshot.docs[0].id; // Return first matching uid
   } catch (error) {
     console.error('Error resolving escalation assignee:', error);
     return null;
   }
+}
+
+function getIssueWardId(issue) {
+  return issue.wardId || issue.ward_id || null;
 }
 
 /**
@@ -124,9 +142,16 @@ async function sendPushNotification(userId, title, body, data = {}) {
       return;
     }
 
+    const stringData = Object.entries(data).reduce((acc, [key, value]) => {
+      if (value !== undefined && value !== null) {
+        acc[key] = String(value);
+      }
+      return acc;
+    }, {});
+
     const message = {
       notification: { title, body },
-      data,
+      data: stringData,
       tokens
     };
 
@@ -150,6 +175,28 @@ async function sendPushNotification(userId, title, body, data = {}) {
   } catch (error) {
     console.error('Error sending FCM notification:', error);
   }
+}
+
+async function uploadBufferToStorage(path, buffer, contentType = 'image/jpeg') {
+  const token = crypto.randomUUID();
+  const bucket = admin.storage().bucket(storageBucketName);
+  const fileUpload = bucket.file(path);
+
+  await fileUpload.save(buffer, {
+    metadata: {
+      contentType,
+      metadata: { firebaseStorageDownloadTokens: token }
+    }
+  });
+
+  return `https://firebasestorage.googleapis.com/v0/b/${storageBucketName}/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
+}
+
+async function uploadBase64ToStorage(path, base64) {
+  const match = base64.match(/^data:(.+);base64,(.+)$/);
+  const contentType = match?.[1] || 'image/jpeg';
+  const rawBase64 = match?.[2] || base64;
+  return uploadBufferToStorage(path, Buffer.from(rawBase64, 'base64'), contentType);
 }
 
 /**
@@ -186,10 +233,15 @@ app.post('/api/geofence/validate', upload.single('photoBlob'), async (req, res) 
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { ticketId, technicianCoords, accuracy } = req.body;
+    const { ticketId, technicianCoords, accuracy, photoBlob, photoBase64, notes } = req.body;
+    const base64Photo = photoBase64 || (typeof photoBlob === 'string' ? photoBlob : null);
 
     if (!ticketId || !technicianCoords) {
       return res.status(400).json({ error: 'Missing ticketId or technicianCoords' });
+    }
+
+    if (!req.file && !base64Photo) {
+      return res.status(400).json({ error: 'Resolution photo is required' });
     }
 
     // Parse coords if string
@@ -198,11 +250,21 @@ app.post('/api/geofence/validate', upload.single('photoBlob'), async (req, res) 
       coords = JSON.parse(coords);
     }
 
+    if (
+      typeof coords.lat !== 'number' ||
+      typeof coords.lng !== 'number' ||
+      Number.isNaN(coords.lat) ||
+      Number.isNaN(coords.lng)
+    ) {
+      return res.status(400).json({ error: 'Invalid technician coordinates' });
+    }
+
     // Check GPS accuracy
-    if (accuracy && accuracy > 50) {
+    const parsedAccuracy = Number(accuracy);
+    if (Number.isFinite(parsedAccuracy) && parsedAccuracy > 50) {
       return res.status(400).json({
         error: 'GPS signal too weak. Please move to an open area and try again.',
-        accuracy
+        accuracy: parsedAccuracy
       });
     }
 
@@ -230,36 +292,40 @@ app.post('/api/geofence/validate', upload.single('photoBlob'), async (req, res) 
     );
 
     const GEOFENCE_RADIUS = 100; // meters
-    const bucketName = "local-issue-tracker-1533d.firebasestorage.app";
-    const bucket = admin.storage().bucket(bucketName);
+    const uploadPhoto = async (basePath) => {
+      if (req.file) {
+        const fileExt = req.file.mimetype?.split('/')[1] || 'jpg';
+        return uploadBufferToStorage(
+          `${basePath}/${ticketId}/${Date.now()}.${fileExt}`,
+          req.file.buffer,
+          req.file.mimetype || 'image/jpeg'
+        );
+      }
+
+      if (base64Photo) {
+        return uploadBase64ToStorage(`${basePath}/${ticketId}/${Date.now()}.jpg`, base64Photo);
+      }
+
+      return null;
+    };
 
     if (distance <= GEOFENCE_RADIUS) {
       // --- RESOLUTION SUCCESS ---
       // Upload photo to Firebase Storage
-      let photoUrl = null;
-      if (req.file) {
-        const token = crypto.randomUUID();
-        const fileName = `resolutions/${ticketId}/${Date.now()}.jpg`;
-        const fileUpload = bucket.file(fileName);
-
-        await fileUpload.save(req.file.buffer, {
-          metadata: {
-            contentType: req.file.mimetype || 'image/jpeg',
-            metadata: { firebaseStorageDownloadTokens: token }
-          }
-        });
-
-        photoUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(fileName)}?alt=media&token=${token}`;
-      }
+      const photoUrl = await uploadPhoto('resolutions');
 
       // Update ticket
-      await ticketRef.update({
+      const batch = db.batch();
+      batch.update(ticketRef, {
         status: 'resolved',
         resolvedAt: admin.firestore.FieldValue.serverTimestamp(),
         resolvedBy: decodedToken.uid,
         resolutionPhotoUrl: photoUrl,
-        resolvedCoords: { lat: coords.lat, lng: coords.lng }
+        resolvedCoords: { lat: coords.lat, lng: coords.lng },
+        resolutionNotes: notes || ticket.resolutionNotes || '',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
+      await batch.commit();
 
       // Notify citizen
       if (ticket.reportedBy) {
@@ -267,7 +333,7 @@ app.post('/api/geofence/validate', upload.single('photoBlob'), async (req, res) 
           ticket.reportedBy,
           'Issue Resolved',
           `Your reported issue "${ticket.title}" has been resolved.`,
-          { ticketId, status: 'resolved' }
+          { ticketId, status: 'resolved', type: 'resolution' }
         );
       }
 
@@ -276,50 +342,38 @@ app.post('/api/geofence/validate', upload.single('photoBlob'), async (req, res) 
     } else {
       // --- GEOFENCE BLOCK ---
       // Upload photo to disputes storage
-      let photoUrl = null;
-      if (req.file) {
-        const token = crypto.randomUUID();
-        const fileName = `disputes/${ticketId}/${Date.now()}.jpg`;
-        const fileUpload = bucket.file(fileName);
-
-        await fileUpload.save(req.file.buffer, {
-          metadata: {
-            contentType: req.file.mimetype || 'image/jpeg',
-            metadata: { firebaseStorageDownloadTokens: token }
-          }
-        });
-
-        photoUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(fileName)}?alt=media&token=${token}`;
-      }
+      const photoUrl = await uploadPhoto('disputes');
 
       // Create dispute record
-      const disputeRef = db.collection('disputes').doc();
-      await disputeRef.set({
+      const disputeRef = db.collection('disputes').doc(ticketId);
+      const batch = db.batch();
+      batch.set(disputeRef, {
         ticketId,
         technicianId: decodedToken.uid,
         technicianCoords: { lat: coords.lat, lng: coords.lng },
         issueCoords: { lat: issueCoords.lat, lng: issueCoords.lng },
         distanceMeters: distance,
         photoUrl,
+        notes: notes || '',
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         status: 'pending_review'
       });
+      batch.update(ticketRef, {
+        last_geofence_block_at: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      await batch.commit();
 
       // Query for ward officer of the ticket's ward
-      const wardId = ticket.ward_id;
+      const wardId = getIssueWardId(ticket);
       if (wardId) {
-        const wardOfficerQuery = await db.collection('users')
-          .where('role', '==', 'ward_officer')
-          .where('wardId', '==', wardId)
-          .get();
-
-        if (!wardOfficerQuery.empty) {
-          const wardOfficerId = wardOfficerQuery.docs[0].id;
+        const wardOfficerId = await resolveEscalationAssignee(1, wardId);
+        if (wardOfficerId) {
           await sendPushNotification(
             wardOfficerId,
             'Manual Review Required',
-            `Technician was ${Math.round(distance)}m away from issue location. Review disputed submission.`,
-            { ticketId, disputeId: disputeRef.id, distanceMeters: distance }
+            'A technician was outside the geofence. Review disputed submission.',
+            { ticketId, disputeId: disputeRef.id, distanceMeters: String(Math.round(distance)), type: 'geofence_block' }
           );
         }
       }
@@ -338,12 +392,12 @@ app.post('/api/geofence/validate', upload.single('photoBlob'), async (req, res) 
 });
 
 // ============================================================
-// SLA ESCALATION CRON JOB (Runs every 15 minutes)
+// SLA ESCALATION JOB
 // ============================================================
 
-cron.schedule('*/15 * * * *', async () => {
+async function runEscalationCheck(source = 'cron') {
   try {
-    console.log('[SLA Cron] Checking for overdue tickets...');
+    console.log(`[SLA ${source}] Checking for overdue tickets...`);
     const now = new Date();
 
     const overdueSnapshot = await db.collection('issues')
@@ -353,17 +407,18 @@ cron.schedule('*/15 * * * *', async () => {
       .get();
 
     if (overdueSnapshot.empty) {
-      console.log('[SLA Cron] No overdue tickets found.');
-      return;
+      console.log(`[SLA ${source}] No overdue tickets found.`);
+      return { escalatedCount: 0 };
     }
 
     const batch = db.batch();
     let escalatedCount = 0;
+    const notifications = [];
 
     for (const doc of overdueSnapshot.docs) {
       const issue = doc.data();
       const newLevel = (issue.escalation_level ?? 0) + 1;
-      const newAssigneeId = await resolveEscalationAssignee(newLevel, issue.ward_id);
+      const newAssigneeId = await resolveEscalationAssignee(newLevel, getIssueWardId(issue));
       const newDeadline = computeNewDeadline(newLevel);
 
       const escalationEntry = {
@@ -379,35 +434,65 @@ cron.schedule('*/15 * * * *', async () => {
         assignedTo: newAssigneeId,
         deadline_at: admin.firestore.Timestamp.fromDate(newDeadline),
         escalation_history: admin.firestore.FieldValue.arrayUnion(escalationEntry),
-        last_escalated_at: admin.firestore.FieldValue.serverTimestamp()
+        last_escalated_at: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
       // Queue FCM notification for new assignee
       if (newAssigneeId) {
-        sendPushNotification(
+        notifications.push(sendPushNotification(
           newAssigneeId,
           'Ticket Escalated to You',
           `"${issue.title}" has been escalated and requires your attention.`,
           {
             ticketId: doc.id,
-            escalationLevel: newLevel,
+            escalationLevel: String(newLevel),
+            type: 'escalation',
             reason: 'SLA_BREACH'
           }
-        ).catch(err => console.error('Error sending escalation notification:', err));
+        ));
       }
 
+      console.log(`[SLA ${source}] Queued escalation for ticket ${doc.id} to level ${newLevel}`);
       escalatedCount++;
     }
 
     await batch.commit();
-    console.log(`[SLA Cron] Escalated ${escalatedCount} tickets.`);
+    await Promise.allSettled(notifications);
+    console.log(`[SLA ${source}] Escalated ${escalatedCount} tickets.`);
+    return { escalatedCount };
 
   } catch (error) {
-    console.error('[SLA Cron] Error:', error);
+    console.error(`[SLA ${source}] Error:`, error);
+    throw error;
+  }
+}
+
+cron.schedule('*/15 * * * *', async () => {
+  try {
+    await runEscalationCheck('cron');
+  } catch (error) {
+    // runEscalationCheck already logs full details.
   }
 });
 
 console.log('[SLA Cron] Scheduler initialized. Running checks every 15 minutes.');
+
+app.post('/api/cron/escalate', async (req, res) => {
+  const configuredSecret = process.env.SCHEDULER_SHARED_SECRET;
+  const providedSecret = req.headers['x-scheduler-secret'] || req.body?.secret;
+
+  if (!configuredSecret || providedSecret !== configuredSecret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const result = await runEscalationCheck('http');
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(500).json({ error: 'Escalation job failed', message: error.message });
+  }
+});
 
 // ============================================================
 // EXISTING ENDPOINTS (OTP, RESOLUTION, etc.)
@@ -553,7 +638,7 @@ app.post('/api/resolve-issue-geofence', upload.single('photo'), async (req, res)
         // --- 1. Firebase Storage Upload logic ---
         // Grab default bucket name specified in frontend or use project ID
         // Often we can get it dynamically from admin instances or hardcoded 
-        const bucketName = "local-issue-tracker-1533d.firebasestorage.app";
+        const bucketName = storageBucketName;
         const bucket = admin.storage().bucket(bucketName);
         
         const fileExt = req.file.mimetype.split('/')[1] || 'jpg';

@@ -16,6 +16,20 @@ if (!admin.apps.length) {
 
 const { PUNE_WARDS, PUNE_DEPARTMENTS } = require('./seedMockAdmins');
 
+const SLA_HOURS = {
+  critical: 4,
+  high: 24,
+  medium: 72,
+  low: 168
+};
+
+function computeDeadline(severity) {
+  const hours = SLA_HOURS[severity] ?? 72;
+  const deadline = new Date();
+  deadline.setHours(deadline.getHours() + hours);
+  return deadline;
+}
+
 const MOCK_ISSUES = [
   {
     title: "Large Pothole near University Circle",
@@ -110,6 +124,9 @@ async function seedIssues() {
         ...issue,
         reportedAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        deadline_at: admin.firestore.Timestamp.fromDate(computeDeadline(issue.severity)),
+        escalation_level: 0,
+        escalation_history: [],
       });
       console.log(`✅ Created issue: ${issue.title} (ID: ${docRef.id})`);
     } catch (error) {

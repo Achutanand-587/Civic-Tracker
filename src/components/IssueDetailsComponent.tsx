@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { ResolveIssueGeofence } from './ResolveIssueGeofence';
 import { EscalationBadge } from './EscalationBadge';
 import { useTicketDetailsListener } from '@/hooks/useTicketDetailsListener';
+import { usePMCAuth } from '@/hooks/usePMCAuth';
 import { formatDistanceToNow, format, isPast, differenceInHours } from 'date-fns';
 
 interface IssueDetailsComponentProps {
@@ -17,6 +18,7 @@ interface IssueDetailsComponentProps {
 
 export const IssueDetailsComponent = ({ issueId }: IssueDetailsComponentProps) => {
   const { user } = useAuth();
+  const { claims } = usePMCAuth();
   const { ticket, loading } = useTicketDetailsListener({ ticketId: issueId });
   const [resolveDialogOpen, setResolveDialogOpen] = useState(false);
 
@@ -37,7 +39,7 @@ export const IssueDetailsComponent = ({ issueId }: IssueDetailsComponentProps) =
     );
   }
 
-  const isResolver = user?.role === 'technician' || user?.uid === ticket.assignedTo;
+  const isResolver = claims?.pmcRole === 'TECHNICIAN' || user?.uid === ticket.assignedTo;
   const canResolve = isResolver && ticket.status !== 'resolved';
   const isOverdue = ticket.deadline_at && isPast(new Date(ticket.deadline_at));
   const hoursUntilDeadline = ticket.deadline_at ? differenceInHours(new Date(ticket.deadline_at), new Date()) : null;
@@ -202,7 +204,7 @@ export const IssueDetailsComponent = ({ issueId }: IssueDetailsComponentProps) =
               {!canResolve && ticket.status !== 'resolved' && (
                 <div className="bg-gray-50 p-3 rounded border">
                   <p className="text-sm">
-                    {user?.role !== 'technician'
+                    {claims?.pmcRole !== 'TECHNICIAN'
                       ? 'Only assigned technicians can resolve tickets via geofence'
                       : 'You are not assigned to this ticket'}
                   </p>

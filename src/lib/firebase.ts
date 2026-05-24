@@ -42,9 +42,13 @@ export async function initFCM() {
       return null;
     }
 
-    const token = await getToken(messaging, {
-      vapidKey: import.meta.env.VITE_FCM_VAPID_KEY || "AIzaSyD9PGIvDi-SW6BAnO2nRndmyEWPDB9esB8"
-    });
+    const vapidKey = import.meta.env.VITE_FCM_VAPID_KEY || import.meta.env.FCM_VAPID_KEY;
+    if (!vapidKey) {
+      console.warn("Missing VITE_FCM_VAPID_KEY; FCM token registration skipped.");
+      return null;
+    }
+
+    const token = await getToken(messaging, { vapidKey });
 
     console.log("FCM Token:", token);
     return token;

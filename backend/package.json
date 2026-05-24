@@ -5,7 +5,8 @@
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
-        "dev": "npx nodemon server.js"
+        "dev": "npx nodemon server.js",
+        "cron": "node server.js"
     },
     "dependencies": {
         "cors": "^2.8.5",

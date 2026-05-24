@@ -79,18 +79,18 @@ export const ResolveIssueGeofence = ({ ticketId, open, onClose, onSuccess }: Res
     setLoading(true);
 
     try {
-      const formData = new FormData();
-      formData.append('ticketId', ticketId);
-      formData.append('technicianCoords', JSON.stringify({ lat: coords.lat, lng: coords.lng }));
-      formData.append('accuracy', coords.accuracy.toString());
-      formData.append('photoBlob', photoInputRef.current.files[0]);
-
       const response = await fetch('/api/geofence/validate', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${idToken}`
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
         },
-        body: formData
+        body: JSON.stringify({
+          ticketId,
+          technicianCoords: { lat: coords.lat, lng: coords.lng },
+          accuracy: coords.accuracy,
+          photoBlob: photoPreview
+        })
       });
 
       const data = await response.json();
@@ -161,7 +161,7 @@ export const ResolveIssueGeofence = ({ ticketId, open, onClose, onSuccess }: Res
                   Getting Location...
                 </>
               ) : coords ? (
-                'Location Captured ✓'
+                'Location Captured'
               ) : (
                 'Get GPS Location'
               )}
