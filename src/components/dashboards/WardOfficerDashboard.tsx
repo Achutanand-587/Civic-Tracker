@@ -12,6 +12,7 @@ import { MapPin, Calendar, ThumbsUp, Edit2, CheckCircle, Clock } from 'lucide-re
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { usePMCAuth } from '@/hooks/usePMCAuth';
+import { EscalationBadge } from '@/components/EscalationBadge';
 
 export default function WardOfficerDashboard() {
   const { issues, updateIssueStatus } = useIssues();
@@ -96,6 +97,7 @@ export default function WardOfficerDashboard() {
                   <TableHead>Issue / Dept</TableHead>
                   <TableHead>Category / Assigned To</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>SLA</TableHead>
                   <TableHead>Location</TableHead>
                   <TableHead>Reported</TableHead>
                   <TableHead>Actions</TableHead>
@@ -104,7 +106,7 @@ export default function WardOfficerDashboard() {
               <TableBody>
                 {wardIssues.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       No issues found for this ward.
                     </TableCell>
                   </TableRow>
@@ -132,6 +134,15 @@ export default function WardOfficerDashboard() {
                         <Badge variant={issue.status as any}>
                           {STATUS_CONFIG[issue.status]?.label || issue.status}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {issue.escalation_level && issue.escalation_level > 0 ? (
+                          <div className="min-w-[180px]">
+                            <EscalationBadge issue={issue} />
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">On track</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1 text-xs text-muted-foreground max-w-[150px]">

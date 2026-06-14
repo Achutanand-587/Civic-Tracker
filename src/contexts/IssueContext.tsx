@@ -58,12 +58,23 @@ export const IssueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           updatedAt: data.updatedAt?.toDate() || new Date(),
           assignedTo: data.assignedTo,
           resolutionNotes: data.resolutionNotes,
+          resolutionPhotoUrl: data.resolutionPhotoUrl,
+          resolvedAt: data.resolvedAt?.toDate(),
+          resolvedBy: data.resolvedBy,
+          resolvedCoords: data.resolvedCoords,
           ward_id: data.ward_id,
           dept_id: data.dept_id,
           ward_name: data.ward_name,
           dept_name: data.dept_name,
           assigned_incharge: data.assigned_incharge,
-          resolutionPhotoUrl: data.resolutionPhotoUrl,
+          severity: data.severity,
+          deadline_at: data.deadline_at?.toDate(),
+          escalation_level: data.escalation_level ?? 0,
+          escalation_history: (data.escalation_history || []).map((entry: any) => ({
+            ...entry,
+            escalatedAt: entry.escalatedAt?.toDate() || new Date()
+          })),
+          last_escalated_at: data.last_escalated_at?.toDate()
         } as Issue;
       });
       setIssues(issuesData);
@@ -82,12 +93,28 @@ export const IssueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     const now = Timestamp.now();
+
+    // Compute deadline based on severity
+    const SLA_HOURS: Record<string, number> = {
+      critical: 4,
+      high: 24,
+      medium: 72,
+      low: 168  // 7 days
+    };
+
+    const hours = SLA_HOURS[issueData.severity as string] ?? 72;
+    const deadlineDate = new Date();
+    deadlineDate.setHours(deadlineDate.getHours() + hours);
+
     await addDoc(collection(db, ISSUES_COLLECTION), {
       ...issueData,
       upvotes: 0,
       upvotedBy: [],
       reportedAt: now,
       updatedAt: now,
+      deadline_at: Timestamp.fromDate(deadlineDate),
+      escalation_level: 0,
+      escalation_history: []
     });
   }, [user]);
 

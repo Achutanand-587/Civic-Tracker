@@ -9,6 +9,15 @@ import { MapPin, Calendar, CheckCircle2, Wrench, Menu } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { usePMCAuth } from '@/hooks/usePMCAuth';
+import { auth } from '@/lib/firebase';
+
+const fileToBase64 = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 
 export default function TechnicianPortal() {
   const { issues, updateIssueStatus } = useIssues();
@@ -54,8 +63,7 @@ export default function TechnicianPortal() {
       async (position) => {
         const accuracy = position.coords.accuracy;
 
-        // Increased from 50m to 10000m for easy desktop testing
-        if (accuracy > 10000) {
+        if (accuracy > 50) {
           toast.error(`Location accuracy is too low (±${Math.round(accuracy)}m). Please step outside, turn on Wi-Fi, or ensure clear sky visibility.`, { id: 'geofence-toast' });
           setIsResolving(false);
           return;
@@ -67,15 +75,28 @@ export default function TechnicianPortal() {
         };
 
         try {
-          const formData = new FormData();
-          formData.append('issueId', issueId);
-          formData.append('technicianLocation', JSON.stringify(coords));
-          formData.append('notes', notes);
-          formData.append('photo', photo);
+          const idToken = await auth.currentUser?.getIdToken();
+          if (!idToken) {
+            toast.error('Authentication required. Please sign in again.', { id: 'geofence-toast' });
+            setIsResolving(false);
+            return;
+          }
 
-          const response = await fetch('http://localhost:3001/api/resolve-issue-geofence', {
+          const photoBlob = await fileToBase64(photo);
+
+          const response = await fetch('/api/geofence/validate', {
             method: 'POST',
-            body: formData
+            headers: {
+              Authorization: `Bearer ${idToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              ticketId: issueId,
+              technicianCoords: coords,
+              accuracy,
+              notes,
+              photoBlob
+            })
           });
 
           const data = await response.json();
@@ -86,9 +107,14 @@ export default function TechnicianPortal() {
             return;
           }
 
-          toast.success(`Task resolved! You were ${data.distance}m away.`, { id: 'geofence-toast' });
-          setActiveIssueId(null);
-          setNotes('');
+          if (data.status === 'geofence_block') {
+            toast.error(data.message || `Geofence blocked at ${Math.round(data.distanceMeters)}m. Submitted for review.`, { id: 'geofence-toast' });
+          } else {
+            toast.success(`Task resolved! You were ${Math.round(data.distance || 0)}m away.`, { id: 'geofence-toast' });
+            setActiveIssueId(null);
+            setNotes('');
+            setPhoto(null);
+          }
         } catch (error) {
           console.error(error);
           toast.error('Server error updating issue.', { id: 'geofence-toast' });

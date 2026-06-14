@@ -2,12 +2,11 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import { getFirestore, FieldValue } from "firebase/firestore";
+import { getMessaging, getToken, onMessage } from "firebase/messaging";
+import { getStorage } from "firebase/storage";
 
 // Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyD9PGIvDi-SW6BAnO2nRndmyEWPDB9esB8",
   authDomain: "local-issue-tracker-1533d.firebaseapp.com",
@@ -27,4 +26,53 @@ export const auth = getAuth(app);
 
 // Initialize Cloud Firestore and get a reference to the service
 export const db = getFirestore(app);
+
+// Initialize Firebase Storage
+export const storage = getStorage(app);
+
+// Initialize FCM
+let messaging: any = null;
+
+export async function initFCM() {
+  try {
+    messaging = getMessaging(app);
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      console.log("Notification permission denied");
+      return null;
+    }
+
+    const vapidKey = import.meta.env.VITE_FCM_VAPID_KEY || import.meta.env.FCM_VAPID_KEY;
+    if (!vapidKey) {
+      console.warn("Missing VITE_FCM_VAPID_KEY; FCM token registration skipped.");
+      return null;
+    }
+
+    const token = await getToken(messaging, { vapidKey });
+
+    console.log("FCM Token:", token);
+    return token;
+  } catch (error) {
+    console.error("Error initializing FCM:", error);
+    return null;
+  }
+}
+
+export function getMessagingInstance() {
+  if (!messaging) {
+    messaging = getMessaging(app);
+  }
+  return messaging;
+}
+
+export function setupFCMListener(callback: (payload: any) => void) {
+  if (!messaging) {
+    messaging = getMessaging(app);
+  }
+  
+  onMessage(messaging, (payload) => {
+    console.log("Message received:", payload);
+    callback(payload);
+  });
+}
 

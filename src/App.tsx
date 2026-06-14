@@ -13,6 +13,7 @@ import AdminLogin from "./pages/AdminLogin";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Profile from "./pages/Profile";
+import { useFCMNotifications } from "./hooks/useFCMNotifications";
 
 import NotFound from "./pages/NotFound";
 import { useAuth } from "./contexts/AuthContext";
@@ -26,11 +27,17 @@ const ProfileGuard = ({ children }: { children: React.ReactNode }) => {
 
 const queryClient = new QueryClient();
 
+const NotificationBootstrap = () => {
+  useFCMNotifications();
+  return null;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <IssueProvider>
         <TooltipProvider>
+          <NotificationBootstrap />
           <Toaster />
           <Sonner />
           <BrowserRouter>

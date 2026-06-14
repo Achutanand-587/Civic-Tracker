@@ -5,13 +5,15 @@
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
-        "dev": "npx nodemon server.js"
+        "dev": "npx nodemon server.js",
+        "cron": "node server.js"
     },
     "dependencies": {
         "cors": "^2.8.5",
         "dotenv": "^16.6.1",
         "express": "^4.18.2",
         "firebase-admin": "^13.8.0",
-        "multer": "^2.1.1"
+        "multer": "^2.1.1",
+        "node-cron": "^3.0.3"
     }
 }

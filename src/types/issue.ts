@@ -2,6 +2,14 @@ export type IssueStatus = 'reported' | 'in-progress' | 'resolved';
 
 export type IssueCategory = 'pothole' | 'garbage' | 'streetlight' | 'water' | 'other';
 
+export interface EscalationEntry {
+  escalatedAt: Date;
+  fromLevel: number;
+  toLevel: number;
+  reason: string;
+  previousAssigneeId?: string;
+}
+
 export interface Issue {
   id: string;
   title: string;
@@ -22,12 +30,19 @@ export interface Issue {
   assignedTo?: string;
   resolutionNotes?: string;
   resolutionPhotoUrl?: string;
+  resolvedAt?: Date;
+  resolvedBy?: string;
+  resolvedCoords?: { lat: number; lng: number };
   severity?: 'low' | 'medium' | 'high' | 'critical';
   ward_id?: string;
   dept_id?: string;
   ward_name?: string;
   dept_name?: string;
   assigned_incharge?: string;
+  deadline_at?: Date;
+  escalation_level?: number;
+  escalation_history?: EscalationEntry[];
+  last_escalated_at?: Date;
 }
 
 export interface User {
